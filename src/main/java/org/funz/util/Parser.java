@@ -1,44 +1,30 @@
 package org.funz.util;
 
 import com.jayway.jsonpath.JsonPath;
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
+import org.math.io.parser.ArrayString;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.w3c.dom.ls.DOMImplementationLS;
+import org.w3c.dom.ls.LSSerializer;
+
+import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathExpression;
 import javax.xml.xpath.XPathFactory;
+import java.io.*;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
-import org.apache.commons.io.filefilter.FileFileFilter;
-import org.math.io.parser.ArrayString;
-import static org.funz.util.ASCII.CHARSET;
-import static org.funz.util.ASCII.InputStreamToString;
-import static org.funz.util.ASCII.saveFile;
-import static org.funz.util.Data.asString;
-import org.w3c.dom.Document;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-import org.w3c.dom.ls.DOMImplementationLS;
-import org.w3c.dom.ls.LSSerializer;
+import static org.funz.util.ASCII.*;
 
 /**
  * Conveninence methods to emulate ParserUtils parsing functions like grep, cut,
@@ -529,6 +515,240 @@ public class Parser {
         return lines;
     }
 
+    /**
+     * find String in ParserUtils files matching given file name regexp
+     *
+     * @param filefilter filename filter regexp
+     * (http://java.sun.com/j2se/1.4.2/docs/api/java/util/regex/Pattern.html)
+     * @param keyfilter String to find
+     * @return list of lines taken from selected files
+     */
+    public List<String> grep_basic(String filefilter, String keyfilter) {
+        LinkedList<String> p = new LinkedList<String>();
+        List<File> fs = find(filefilter);
+        if (fs.size() == 0) {
+            return p;
+        }
+        for (File f : fs) {
+            p.addAll(grep_basic(f, keyfilter));
+        }
+        return p;
+    }
+
+    /**
+     * find String in ParserUtils file
+     *
+     * @param file ParserUtils file to read
+     * @param keyfilter String to find
+     * @return lines taken in file
+     */
+    public static List<String> grep_basic(File file, String keyfilter) {
+        if (!file.isFile()) {
+            return null;
+        }
+        java.io.BufferedReader inn = null;
+        InputStreamReader isr = null;
+        FileInputStream fis = null;
+        List<String> ret = null;
+        try {
+            fis = new FileInputStream(file);
+            isr = new InputStreamReader(fis, CHARSET);
+            inn = new BufferedReader(isr);
+            ret = grep_basic(inn, keyfilter);
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                fis.close();
+                isr.close();
+                inn.close();
+            } catch (Exception ee) {
+                ee.printStackTrace();
+            }
+        }
+        return ret;
+    }
+
+    /**
+     * find String in buffer
+     *
+     * @param inn buffer to read
+     * @param keyfilter String to find
+     * @param linesAfter selecting the line 'number of lines after the regex match'
+     * @return lines taken in file
+     */
+    public static List<String> grep_after(BufferedReader inn, String keyfilter, int linesAfter) {
+        if (keyfilter.contains("(") || keyfilter.contains(")") || keyfilter.contains("{") || keyfilter.contains("}") || keyfilter.contains("+") || keyfilter.contains("?") || keyfilter.contains("*") || keyfilter.contains("$") || keyfilter.contains("^") || keyfilter.contains("|") || keyfilter.contains(".") || keyfilter.contains("\\")) {
+            LinkedList<String> lines = new LinkedList<String>();
+            String tmp;
+            Matcher m;
+            Pattern p = Pattern.compile(ANY + keyfilter + ANY);
+            try {
+                int line = 0;
+                Set<Integer> linesIdxToAdd = new HashSet<>();
+                while ((tmp = inn.readLine()) != null) {
+                    m = p.matcher(tmp);
+                    if (m.find()) {
+                        linesIdxToAdd.add(line+linesAfter);
+                    }
+                    if(linesIdxToAdd.contains(line)) {
+                        lines.add(tmp);
+                        linesIdxToAdd.remove(line);
+                    }
+                    line++;
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return lines;
+        } else {
+            return grep_basic_after(inn, keyfilter, linesAfter);
+        }
+    }
+
+    /**
+     * find String in ParserUtils files matching given file name regexp
+     *
+     * @param filefilter filename filter regexp
+     * (http://java.sun.com/j2se/1.4.2/docs/api/java/util/regex/Pattern.html)
+     * @param keyfilter String to find
+     * @param linesAfter selecting the line 'number of lines after the regex match'
+     * @return list of lines taken from selected files
+     */
+    public List<String> grep_after(String filefilter, String keyfilter, int linesAfter) {
+        LinkedList<String> p = new LinkedList<String>();
+        List<File> fs = find(filefilter);
+        if (fs.size() == 0) {
+            return p;
+        }
+        for (File f : fs) {
+            p.addAll(grep_after(f, keyfilter, linesAfter));
+        }
+        return p;
+    }
+
+    /**
+     * find String in ParserUtils file
+     *
+     * @param file ParserUtils file to read
+     * @param keyfilter String to find
+     * @param linesAfter selecting the line 'number of lines after the regex match'
+     * @return lines taken in file
+     */
+    public static List<String> grep_after(File file, String keyfilter, int linesAfter) {
+        if (!file.isFile()) {
+            return null;
+        }
+        java.io.BufferedReader inn = null;
+        InputStreamReader isr = null;
+        FileInputStream fis = null;
+        List<String> ret = null;
+        try {
+            fis = new FileInputStream(file);
+            isr = new InputStreamReader(fis, CHARSET);
+            inn = new BufferedReader(isr);
+            ret = grep_after(inn, keyfilter, linesAfter);
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                fis.close();
+                isr.close();
+                inn.close();
+            } catch (Exception ee) {
+                ee.printStackTrace();
+            }
+        }
+        return ret;
+    }
+
+
+    /**
+     * find String in buffer
+     *
+     * @param inn buffer to read
+     * @param keyfilter String to find, not a regexp
+     * @param linesAfter selecting the line 'number of lines after the regex match'
+     * @return lines taken in file
+     */
+    public static List<String> grep_basic_after(BufferedReader inn, String keyfilter, int linesAfter) {
+        LinkedList<String> lines = new LinkedList<String>();
+        String tmp;
+        Set<Integer> linesIdxToAdd = new HashSet<>();
+        try {
+            int line = 0;
+            while ((tmp = inn.readLine()) != null) {
+                if (tmp.contains(keyfilter)) {
+                    linesIdxToAdd.add(line+linesAfter);
+                }
+                if(linesIdxToAdd.contains(line)) {
+                    lines.add(tmp);
+                    linesIdxToAdd.remove(line);
+                }
+                line++;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return lines;
+    }
+
+    /**
+     * find String in ParserUtils files matching given file name regexp
+     *
+     * @param filefilter filename filter regexp
+     * (http://java.sun.com/j2se/1.4.2/docs/api/java/util/regex/Pattern.html)
+     * @param keyfilter String to find
+     * @param linesAfter selecting the line 'number of lines after the regex match'
+     * @return list of lines taken from selected files
+     */
+    public List<String> grep_basic_after(String filefilter, String keyfilter, int linesAfter) {
+        LinkedList<String> p = new LinkedList<String>();
+        List<File> fs = find(filefilter);
+        if (fs.size() == 0) {
+            return p;
+        }
+        for (File f : fs) {
+            p.addAll(grep_basic_after(f, keyfilter, linesAfter));
+        }
+        return p;
+    }
+
+    /**
+     * find String in ParserUtils file
+     *
+     * @param file ParserUtils file to read
+     * @param keyfilter String to find
+     * @param linesAfter selecting the line 'number of lines after the regex match'
+     * @return lines taken in file
+     */
+    public static List<String> grep_basic_after(File file, String keyfilter, int linesAfter) {
+        if (!file.isFile()) {
+            return null;
+        }
+        java.io.BufferedReader inn = null;
+        InputStreamReader isr = null;
+        FileInputStream fis = null;
+        List<String> ret = null;
+        try {
+            fis = new FileInputStream(file);
+            isr = new InputStreamReader(fis, CHARSET);
+            inn = new BufferedReader(isr);
+            ret = grep_basic_after(inn, keyfilter, linesAfter);
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                fis.close();
+                isr.close();
+                inn.close();
+            } catch (Exception ee) {
+                ee.printStackTrace();
+            }
+        }
+        return ret;
+    }
+
     public static List<String> gnotrep(BufferedReader inn, String keyfilter) {
         return grep_basic(inn, keyfilter);
     }
@@ -636,7 +856,7 @@ public class Parser {
     /**
      * test if String is in String
      *
-     * @param inn buffer to read
+     * @param input buffer to read
      * @param keyfilter String to find
      * @return keyfilter found in file
      */
@@ -1009,7 +1229,7 @@ public class Parser {
     /**
      * get part of a several Strings
      *
-     * @param line String to cut
+     * @param lines String to cut
      * @param beginstr first chars to keep
      * @param endstr first chars to reject
      * @return lines cut
@@ -1289,6 +1509,24 @@ public class Parser {
         return p;
     }
 
+
+    /**
+     * get element of a list of Strings
+     *
+     * @param lines list of String
+     * @param i index of element to get (0 means last, 1 means first)
+     * @return String element to get
+     */
+    public static String get(ArrayList lines, int i) {
+        if (lines == null || lines.size() == 0) {
+            return null;
+        }
+        if (i <= 0) {
+            i = lines.size() + i;
+        }
+        return (String) lines.get(i - 1);
+    }
+
     public static List<String> head(List<String> lines, int l) {
         l = Math.min(l,lines.size());
         List<String> h = new ArrayList<>(l);
@@ -1437,6 +1675,14 @@ public class Parser {
         return dt;
     }
 
+    public static double asNumeric(boolean boolValue) {
+        return boolValue ? 1.0 : 0.0;
+    }
+
+    public static double asNumeric(Boolean boolValue) {
+        return boolValue ? 1.0 : 0.0;
+    }
+
     /**
      * wrap String in float
      *
@@ -1447,8 +1693,15 @@ public class Parser {
         double value = Double.NaN;
         if (line != null) {
             try {
+                // Attempt to parse as a double first
                 value = Double.parseDouble(line);
             } catch (NumberFormatException nfe) {
+                // If parsing fails, check if the string is a boolean representation
+                if ("true".equalsIgnoreCase(line)) {
+                    value = 1.0;
+                } else if ("false".equalsIgnoreCase(line)) {
+                    value = 0.0;
+                }
             }
         }
         return value;
@@ -1556,4 +1809,93 @@ public class Parser {
     public static String toString(Object o) {
         return o.toString();
     }
+
+    public static String concatString(Object o1, Object o2) {
+        return o1.toString()+o2.toString();
+    }
+
+    public static String concatString(String string1, String string2) {
+        return string1+string2;
+    }
+
+    public static int doubleToInt(double d) {
+        return (int)d;
+    }
+
+    /**
+     * Returns a string based on a condition.
+     *
+     * @param condition the boolean condition
+     * @param trueString the string to return if the condition is true
+     * @param falseString the string to return if the condition is false
+     * @return the trueString if condition is true, otherwise the falseString
+     */
+    public static String returnIf(Boolean condition, String trueString, String falseString) {
+        if (condition) {
+            return trueString;
+        } else {
+            return falseString;
+        }
+    }
+
+    public List<String> extractMinValues(String filefilter, String parentXpath, String valueXPath, String minXPath) {
+        LinkedList<String> p = new LinkedList<String>();
+        List<File> fs = find(filefilter);
+        if (fs.size() == 0) {
+            return p;
+        }
+        for (File f : fs) {
+            // Work only for one file
+            return extractMinValues(f, parentXpath, valueXPath, minXPath);
+        }
+        return p;
+    }
+
+    public static List<String> extractMinValues(
+            File file,
+            String parentXpath,
+            String valueXPath,
+            String minXPath
+    ) {
+        List<String> bestResult = new ArrayList<>();
+        try {
+            DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+            Document doc = builder.parse(file);
+
+            XPath xPath = XPathFactory.newInstance().newXPath();
+            NodeList parentNodes = (NodeList) xPath.compile(parentXpath).evaluate(doc, XPathConstants.NODESET);
+
+            double minValue = Double.MAX_VALUE;
+
+            for (int i = 0; i < parentNodes.getLength(); i++) {
+                Node parentNode = parentNodes.item(i);
+
+                Node valueNode = (Node) xPath.evaluate(valueXPath, parentNode, XPathConstants.NODE);
+                Node minNode = (Node) xPath.evaluate(minXPath, parentNode, XPathConstants.NODE);
+
+                if (valueNode != null && minNode != null) {
+                    String[] valueParts = valueNode.getTextContent().trim().split("\\s+");
+                    String[] minParts = minNode.getTextContent().trim().split("\\s+");
+
+                    if (valueParts.length > 0 && minParts.length > 0) {
+                        double candidateMin = Double.parseDouble(minParts[0]);
+
+                        if (candidateMin < minValue) {
+                            minValue = candidateMin;
+                            bestResult.clear();
+                            bestResult.add(valueParts[0]);
+                            bestResult.add(minParts[0]);
+                        }
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            bestResult.clear();
+            bestResult.add("Error: " + e.getMessage());
+        }
+
+        return bestResult;
+    }
+
 }
