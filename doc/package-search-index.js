@@ -1,0 +1,1 @@
+packageSearchIndex = [{"l":"All Packages","u":"allpackages-index.html","k":"18"},{"l":"org.funz"},{"l":"org.funz.log"},{"l":"org.funz.util"}];updateSearchResults();

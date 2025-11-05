@@ -1,0 +1,20 @@
+{
+    "configurations": [ 
+        {
+            "type": "java",
+            "name": "Launch ParserTest",
+            "request": "launch",
+            "mainClass": "org.funz.ParserTest",
+            "projectName": "funz-core_b61e7a7d",
+            "vmArgs": "-enableassertions"
+        },
+        {
+            "type": "java",
+            "name": "Launch DataTest",
+            "request": "launch",
+            "mainClass": "org.funz.DataTest",
+            "projectName": "funz-core_b61e7a7d",
+            "vmArgs": "-enableassertions"
+        }
+    ]
+}
