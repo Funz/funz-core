@@ -1842,6 +1842,11 @@ public class Parser {
         LinkedList<String> p = new LinkedList<String>();
         List<File> fs = find(filefilter);
         if (fs.size() == 0) {
+            // Try treating filefilter as an absolute file path
+            File f = new File(filefilter);
+            if (f.exists() && f.isFile()) {
+                return extractMinValues(f, parentXpath, valueXPath, minXPath);
+            }
             return p;
         }
         for (File f : fs) {
